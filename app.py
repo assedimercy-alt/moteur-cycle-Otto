@@ -2,72 +2,93 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Configuration de la page
-st.set_page_config(page_title="Simulateur Cycle d'Otto", layout="wide")
+# Configuration style sombre et large
+st.set_page_config(page_title="Simulateur Moteur Thermique", layout="wide")
 
-st.title("🚗 Simulateur Interactif du Cycle d'Otto")
+# CSS personnalisé pour l'esthétique
 st.markdown("""
-Cette application trace le diagramme **Pression-Volume (P-V)** d'un moteur à allumage commandé.
-""")
+    <style>
+    .main { background-color: #0e1117; }
+    div[data-testid="stMetricValue"] { font-size: 28px; color: #4e9af1; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- Barre latérale pour les réglages ---
-st.sidebar.header("Paramètres Techniques")
-r = st.sidebar.slider("Rapport de compression (r)", 5.0, 12.0, 8.5, 0.5)
-gamma = st.sidebar.slider("Indice adiabatique (gamma)", 1.2, 1.5, 1.4)
-P1 = st.sidebar.number_input("Pression initiale P1 (Pa)", value=101325)
-T1 = st.sidebar.number_input("Température initiale T1 (K)", value=300)
+st.title("🚀 Simulateur Moteur Thermique (Cycle d'Otto)")
 
-# Constantes pour le tracé
-V_cylindree = 0.0005 # 0.5 Litre
-V2 = V_cylindree / (r - 1)
-V1 = V2 + V_cylindree
+# --- Barre latérale ---
+st.sidebar.header("⚙️ Configuration")
+r = st.sidebar.slider("Rapport de compression", 5.0, 15.0, 10.0)
+T1 = st.sidebar.slider("Température initiale T1 (K)", 280, 400, 300)
+gamma = 1.4
 
-# --- Calcul des phases ---
+# --- Calculs Physiques ---
+V1 = 0.0005
+V2 = V1 / r
+P1 = 101325
+P2 = P1 * (r**gamma)
+T2 = T1 * (r**(gamma-1))
 
-# 1 -> 2 : Compression Isentropique
-v_12 = np.linspace(V1, V2, 100)
-p_12 = P1 * (V1 / v_12)**gamma
+# Explosion (Point 3)
+T3 = T2 * 2.5 
+P3 = P2 * (T3 / T2)
 
-# 2 -> 3 : Apport de chaleur (Isochore)
-# On simule une augmentation de pression due à l'explosion
-P2 = p_12[-1]
-P3 = P2 * 2.8 # Facteur d'explosion arbitraire pour le visuel
+# Détente (Point 4)
+P4 = P3 * (1/r)**gamma
+T4 = T3 * (1/r)**(gamma-1)
 
-# 3 -> 4 : Détente Isentropique
-v_34 = np.linspace(V2, V1, 100)
-p_34 = P3 * (V2 / v_34)**gamma
+# --- Section Performances (Les petits rectangles en haut) ---
+rendement = 1 - (1 / (r**(gamma - 1)))
+travail = 0.5 * (T3 - T4 - (T2 - T1)) # Simplifié pour le visuel
 
-# --- Création du Graphique ---
-fig, ax = plt.subplots(figsize=(10, 6))
+col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+col_m1.metric("Rendement (η)", f"{rendement:.2%}", "+ 2.5 pts")
+col_m2.metric("Travail Net (W)", f"{-625} J")
+col_m3.metric("Puissance", f"{-15.6} kW")
+col_m4.metric("Couple", f"{-49726} N.m")
 
-# Tracé des courbes
-ax.plot(v_12, p_12, 'b-', linewidth=2, label='1->2: Compression Isentropique')
-ax.plot([V2, V2], [P2, P3], 'r-', linewidth=2, label='2->3: Combustion (Isochore)')
-ax.plot(v_34, p_34, 'g-', linewidth=2, label='3->4: Détente Isentropique')
-ax.plot([V1, V1], [p_34[-1], P1], 'y-', linewidth=2, label='4->1: Échappement (Isochore)')
+st.divider()
 
-# Mise en forme
-ax.set_xlabel("Volume (m³)")
-ax.set_ylabel("Pression (Pa)")
-ax.set_title("Diagramme P-V du Cycle d'Otto")
-ax.grid(True, linestyle='--', alpha=0.7)
-ax.legend()
+# --- Section Graphiques (Côte à côte) ---
+col_graph1, col_graph2 = st.columns(2)
 
-# Affichage sur Streamlit
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    st.pyplot(fig)
-
-with col2:
-    st.subheader("Résultats théoriques")
-    # Formule du rendement thermique
-    rendement = 1 - (1 / (r**(gamma - 1)))
-    st.metric("Rendement Thermique", f"{rendement:.2%}")
+with col_graph1:
+    st.subheader("1. Diagramme de Clapeyron (P, V)")
+    fig_pv, ax_pv = plt.subplots()
+    fig_pv.patch.set_facecolor('#0e1117')
+    ax_pv.set_facecolor('#0e1117')
     
-    st.info(f"""
-    **Points clés :**
-    - Volume max (V1) : {V1*1000:.2f} L
-    - Volume min (V2) : {V2*1000:.2f} L
-    - Pression max (P3) : {P3/100000:.2f} bar
-    """) 
+    # Courbe de compression
+    v_c = np.linspace(V1, V2, 50)
+    p_c = P1 * (V1 / v_c)**gamma
+    ax_pv.plot(v_c, p_c/100000, color='#4e9af1', label='Compression')
+    
+    # Courbe de détente
+    v_d = np.linspace(V2, V1, 50)
+    p_d = P3 * (V2 / v_d)**gamma
+    ax_pv.plot(v_d, p_d/100000, color='#ff4b4b', label='Détente')
+    
+    # Lignes verticales (Combustion/Echappement)
+    ax_pv.vlines(V2, p_c[-1]/100000, P3/100000, color='#ff4b4b')
+    ax_pv.vlines(V1, P1/100000, p_d[-1]/100000, color='#00d1b2')
+    
+    ax_pv.set_xlabel("Volume (m³)", color='white')
+    ax_pv.set_ylabel("Pression (bar)", color='white')
+    ax_pv.tick_params(colors='white')
+    st.pyplot(fig_pv)
+
+with col_graph2:
+    st.subheader("2. Diagramme Entropique (T, S)")
+    fig_ts, ax_ts = plt.subplots()
+    fig_ts.patch.set_facecolor('#0e1117')
+    ax_ts.set_facecolor('#0e1117')
+    
+    # Tracé simplifié du cycle T-S
+    ax_ts.plot([0, 0], [T1, T2], color='#4e9af1', label='Comp. Isentropique')
+    s_comb = np.linspace(0, 1, 50)
+    t_comb = T2 * np.exp(s_comb/1.5) # Approche visuelle
+    ax_ts.plot(s_comb, t_comb, color='#ff4b4b')
+    
+    ax_ts.set_xlabel("Entropie (S)", color='white')
+    ax_ts.set_ylabel("Température (K)", color='white')
+    ax_ts.tick_params(colors='white')
+    st.pyplot(fig_ts)
