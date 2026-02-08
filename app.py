@@ -35,8 +35,8 @@ st.markdown("""
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    # Logo de l'école (URL directe vers le logo de l'Université de Lomé)
-    st.image("https://upload.wikimedia.org/wikipedia/fr/b/b3/Logo_UL_Togo.png", width=220)
+    #  le logo de l'Université de Lomé
+    st.image("im1.jpeg", width=220)
     st.markdown("## ⚙️ Configuration")
     
     with st.expander("🔬 Modélisation", expanded=True):
