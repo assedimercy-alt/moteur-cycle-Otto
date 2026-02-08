@@ -1,412 +1,470 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Polygon
 import pandas as pd
 
-st.set_page_config(page_title="Simulateur Thermique EPL", layout="wide")
+# Configuration de la page
+st.set_page_config(
+    page_title="Simulateur Thermique EPL",
+    page_icon="🔥",
+    layout="wide"
+)
 
-# Configuration du style
+# CSS personnalisé
 st.markdown("""
-    <style>
-    .main-header {
-        font-size: 2.5rem;
-        color: #1E3A8A;
-        text-align: center;
-        margin-bottom: 2rem;
+<style>
+    /* Style général */
+    .main {
+        padding: 0.5rem;
+    }
+    
+    /* Header avec logo */
+    .header-container {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 2px solid #e0e0e0;
+        margin-bottom: 1rem;
+    }
+    
+    .logo {
+        height: 80px;
+        margin-right: 20px;
+    }
+    
+    .title {
+        color: #1e3a8a;
+        font-size: 2rem;
         font-weight: bold;
+        margin: 0;
     }
-    .sub-header {
-        font-size: 1.8rem;
-        color: #1E40AF;
-        margin-top: 1.5rem;
-        margin-bottom: 1rem;
+    
+    .subtitle {
+        color: #6b7280;
+        font-size: 1rem;
+        margin: 0;
     }
-    .cycle-info {
-        background-color: #F0F9FF;
-        padding: 1rem;
+    
+    /* Cartes */
+    .card {
+        background: white;
         border-radius: 10px;
-        border-left: 5px solid #3B82F6;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1rem;
+        border-left: 4px solid #3b82f6;
+    }
+    
+    .card-title {
+        color: #1e40af;
+        font-size: 1.2rem;
+        font-weight: bold;
         margin-bottom: 1rem;
     }
-    .stButton>button {
-        background-color: #3B82F6;
+    
+    /* Paramètres */
+    .param-label {
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 0.3rem;
+        display: block;
+    }
+    
+    /* Graphiques */
+    .graph-container {
+        background: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Boutons */
+    .stButton > button {
+        width: 100%;
+        background-color: #1e40af;
         color: white;
         font-weight: bold;
-        width: 100%;
+        border: none;
+        padding: 0.7rem;
+        border-radius: 5px;
+        transition: background-color 0.3s;
     }
-    </style>
-    """, unsafe_allow_html=True)
+    
+    .stButton > button:hover {
+        background-color: #1e3a8a;
+    }
+    
+    /* Tableaux */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+    }
+    
+    .data-table th {
+        background-color: #f3f4f6;
+        color: #1f2937;
+        font-weight: bold;
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 2px solid #d1d5db;
+    }
+    
+    .data-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .data-table tr:hover {
+        background-color: #f9fafb;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Titre principal
-st.markdown('<h1 class="main-header">SIMULATEUR MOTEUR THERMIQUE - EPL</h1>', unsafe_allow_html=True)
-
-# Sidebar pour les paramètres
-with st.sidebar:
-    st.markdown("## Simulateur Thermique EPL - Streamlit")
+# Fonction pour créer le header avec logo
+def create_header():
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        # Placeholder pour le logo - à remplacer par votre image
+        st.image("im1.jpeg", 
+                caption="", use_column_width=True)
+    with col2:
+        st.markdown("<h1 class='title'>SIMULATEUR MOTEUR THERMIQUE</h1>", unsafe_allow_html=True)
+        st.markdown("<p class='subtitle'>École Polytechnique de Lille - Labo Virtuel</p>", unsafe_allow_html=True)
     
-    # Sélection du cycle
-    cycle_type = st.radio(
-        "**Sélectionnez le cycle**",
-        ["Otto (Beau de Rochas)", "Diesel"],
-        index=0
-    )
-    
-    st.markdown("### Modèle de Gaz")
-    st.markdown("- Gaz Simple")
-    
-    st.markdown("### Paramètres d'Entrée")
-    
-    # Paramètres communs
-    V1 = st.number_input("Volume initial $V_1$ (m³)", 
-                         value=0.03000, 
-                         format="%.5f",
-                         step=0.001)
-    
-    P1 = st.number_input("Pression initiale $P_1$ (Pa)", 
-                         value=101328.0,
-                         step=1000.0)
-    
-    T1 = st.number_input("Température initiale $T_1$ (K)", 
-                         value=302.0,
-                         step=10.0)
-    
-    # Variables selon le cycle
-    st.markdown("### Variables de Modélisation")
-    
-    if cycle_type == "Otto (Beau de Rochas)":
-        r = st.slider("Taux de Compression ($r$)", 
-                      min_value=6.0, 
-                      max_value=12.0, 
-                      value=9.5,
-                      step=0.1)
-        
-        T_max = st.slider("Température Max (K)", 
-                          min_value=1800.0, 
-                          max_value=2500.0, 
-                          value=2100.0,
-                          step=50.0)
-        
-        # Paramètres spécifiques Otto
-        gamma = 1.4  # Rapport des capacités calorifiques
-        R = 287.0    # Constante des gaz parfaits (J/kg·K)
-        
-    else:  # Cycle Diesel
-        r = st.slider("Taux de Compression ($r$)", 
-                      min_value=12.0, 
-                      max_value=20.0, 
-                      value=16.0,
-                      step=0.5)
-        
-        r_c = st.slider("Taux de coupure ($r_c$)", 
-                        min_value=1.5, 
-                        max_value=3.0, 
-                        value=2.0,
-                        step=0.1)
-        
-        T_max = st.slider("Température Max (K)", 
-                          min_value=1800.0, 
-                          max_value=2500.0, 
-                          value=2000.0,
-                          step=50.0)
-        
-        # Paramètres spécifiques Diesel
-        gamma = 1.4
-        R = 287.0
-    
-    # Bouton de simulation
-    simuler = st.button("🚀 Lancer la Simulation")
+    st.markdown("---")
 
 # Fonction pour calculer le cycle Otto
-def calculate_otto_cycle(V1, P1, T1, r, T_max, gamma=1.4, R=287.0):
+def calculate_otto_cycle(V1, P1, T1, r, T_max):
+    gamma = 1.4
+    R = 287.0
+    
     # Points du cycle
-    # Point 1: début compression
-    V1 = V1
-    P1 = P1
-    T1 = T1
+    V1_val = V1
+    P1_val = P1
+    T1_val = T1
     
-    # Point 2: fin compression adiabatique
-    V2 = V1 / r
-    P2 = P1 * (r ** gamma)
-    T2 = T1 * (r ** (gamma - 1))
+    V2 = V1_val / r
+    P2 = P1_val * (r ** gamma)
+    T2 = T1_val * (r ** (gamma - 1))
     
-    # Point 3: fin combustion isochore
     V3 = V2
     T3 = T_max
     P3 = P2 * (T3 / T2)
     
-    # Point 4: fin détente adiabatique
-    V4 = V1
+    V4 = V1_val
     P4 = P3 / (r ** gamma)
     T4 = T3 / (r ** (gamma - 1))
     
-    # Calcul des travaux et chaleurs
-    # Travail de compression (1-2)
-    W_12 = (P2 * V2 - P1 * V1) / (1 - gamma)
-    
-    # Chaleur ajoutée (2-3)
-    Q_23 = (gamma * R / (gamma - 1)) * (T3 - T2) * (P1 * V1) / (R * T1)
-    
-    # Travail de détente (3-4)
-    W_34 = (P4 * V4 - P3 * V3) / (1 - gamma)
-    
-    # Chaleur rejetée (4-1)
-    Q_41 = (gamma * R / (gamma - 1)) * (T1 - T4) * (P1 * V1) / (R * T1)
-    
-    # Travail net et rendement
-    W_net = W_12 + W_34
-    Q_in = Q_23
-    eta = abs(W_net / Q_in) if Q_in != 0 else 0
-    
-    # Calcul de l'entropie (simplifié)
-    # Pour un gaz parfait: ΔS = cv * ln(T2/T1) + R * ln(V2/V1)
+    # Calcul de l'entropie
     cv = R / (gamma - 1)
-    
-    S1 = 0  # Référence
-    S2 = S1 + cv * np.log(T2/T1) + R * np.log(V2/V1)
-    S3 = S2 + cv * np.log(T3/T2)  # Isochore
-    S4 = S3 + cv * np.log(T4/T3) + R * np.log(V4/V3)
-    
-    return {
-        'points': {
-            'V': [V1, V2, V3, V4, V1],
-            'P': [P1, P2, P3, P4, P1],
-            'T': [T1, T2, T3, T4, T1],
-            'S': [S1, S2, S3, S4, S1]
-        },
-        'travail_net': W_net,
-        'rendement': eta,
-        'puissance': abs(W_net) * 50,  # Approximation
-        'couple': abs(W_net) * 0.159   # Approximation
-    }
-
-# Fonction pour calculer le cycle Diesel
-def calculate_diesel_cycle(V1, P1, T1, r, r_c, T_max, gamma=1.4, R=287.0):
-    # Points du cycle
-    # Point 1: début compression
-    V1 = V1
-    P1 = P1
-    T1 = T1
-    
-    # Point 2: fin compression adiabatique
-    V2 = V1 / r
-    P2 = P1 * (r ** gamma)
-    T2 = T1 * (r ** (gamma - 1))
-    
-    # Point 3: fin combustion isobare
-    V3 = V2 * r_c
-    T3 = T_max
-    P3 = P2  # Isobare
-    
-    # Point 4: fin détente adiabatique
-    V4 = V1
-    P4 = P3 * ((V3 / V4) ** gamma)
-    T4 = T3 * ((V3 / V4) ** (gamma - 1))
-    
-    # Calcul entropie
-    cv = R / (gamma - 1)
-    cp = gamma * cv
-    
     S1 = 0
-    S2 = S1 + cv * np.log(T2/T1) + R * np.log(V2/V1)
-    S3 = S2 + cp * np.log(T3/T2)  # Isobare
+    S2 = S1 + cv * np.log(T2/T1_val) + R * np.log(V2/V1_val)
+    S3 = S2 + cv * np.log(T3/T2)
     S4 = S3 + cv * np.log(T4/T3) + R * np.log(V4/V3)
     
-    # Travail net approximatif
-    W_net = (P3 * V3 - P2 * V2) + (P4 * V4 - P3 * V3) / (1 - gamma)
-    Q_in = cp * (T3 - T2) * (P1 * V1) / (R * T1)
-    eta = 1 - (1 / (r ** (gamma - 1))) * ((r_c ** gamma - 1) / (gamma * (r_c - 1)))
+    # Calcul des performances
+    m = (P1_val * V1_val) / (R * T1_val)  # Masse de gaz
+    W_12 = m * cv * (T1_val - T2)
+    Q_23 = m * cv * (T3 - T2)
+    W_34 = m * cv * (T3 - T4)
+    W_net = W_34 + W_12
+    eta = 1 - 1/(r**(gamma-1))
+    
+    # Puissance et couple (valeurs théoriques)
+    n_cyl = 4
+    N = 3000 / 60  # tr/s
+    Puissance = abs(W_net) * n_cyl * N / 2
+    Couple = Puissance / (2 * np.pi * N)
     
     return {
-        'points': {
-            'V': [V1, V2, V3, V4, V1],
-            'P': [P1, P2, P3, P4, P1],
-            'T': [T1, T2, T3, T4, T1],
-            'S': [S1, S2, S3, S4, S1]
-        },
-        'travail_net': W_net,
+        'V': [V1_val, V2, V3, V4, V1_val],
+        'P': [P1_val/1000, P2/1000, P3/1000, P4/1000, P1_val/1000],
+        'T': [T1_val, T2, T3, T4, T1_val],
+        'S': [S1, S2, S3, S4, S1],
         'rendement': eta,
-        'puissance': abs(W_net) * 50,
-        'couple': abs(W_net) * 0.159
+        'travail_net': abs(W_net),
+        'puissance': Puissance/1000,
+        'couple': Couple,
+        'points': [
+            {'V': V1_val, 'P': P1_val/1000, 'T': T1_val, 'S': S1},
+            {'V': V2, 'P': P2/1000, 'T': T2, 'S': S2},
+            {'V': V3, 'P': P3/1000, 'T': T3, 'S': S3},
+            {'V': V4, 'P': P4/1000, 'T': T4, 'S': S4}
+        ]
     }
 
-# Interface principale
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.markdown("## Labo Virtuel")
-    st.markdown("### Étude Paramétrique")
-    st.markdown("### Données du Cycle")
+# Fonction pour créer les graphiques
+def create_plots(results):
+    # Diagramme P-V
+    fig1, ax1 = plt.subplots(figsize=(8, 5))
     
-    # Afficher les résultats
-    if simuler:
-        if cycle_type == "Otto (Beau de Rochas)":
-            results = calculate_otto_cycle(V1, P1, T1, r, T_max)
-        else:
-            results = calculate_diesel_cycle(V1, P1, T1, r, r_c, T_max)
-        
-        # Création du tableau des résultats
-        data = {
-            "Paramètre": ["Rendement (η)", "Travail Net", "Puissance", "Couple"],
-            "Valeur": [
-                f"{results['rendement']*100:.2f} %",
-                f"{results['travail_net']:.2f} J",
-                f"{results['puissance']/1000:.1f} kW",
-                f"{results['couple']:.1f} N.m"
-            ]
-        }
-        
-        df = pd.DataFrame(data)
-        st.table(df)
-        
-        # Points du cycle pour affichage
-        st.markdown("### Points du Cycle")
-        points_df = pd.DataFrame({
-            "Point": ["1", "2", "3", "4"],
-            "V (m³)": [f"{v:.6f}" for v in results['points']['V'][:4]],
-            "P (Pa)": [f"{p:.0f}" for p in results['points']['P'][:4]],
-            "T (K)": [f"{t:.1f}" for t in results['points']['T'][:4]]
-        })
-        st.table(points_df)
-    else:
-        st.info("⚠️ Cliquez sur 'Lancer la Simulation' pour voir les résultats")
+    V = results['V']
+    P = results['P']
+    
+    # Courbe avec couleurs différentes par segment
+    colors = ['#ef4444', '#10b981', '#3b82f6', '#f59e0b']
+    labels = ['1-2 Compression', '2-3 Combustion', '3-4 Détente', '4-1 Échappement']
+    
+    for i in range(4):
+        ax1.plot(V[i:i+2], P[i:i+2], color=colors[i], linewidth=3, label=labels[i])
+        ax1.plot(V[i], P[i], 'ko', markersize=8)
+        ax1.text(V[i]*1.02, P[i]*1.02, f'{i+1}', fontsize=12, fontweight='bold')
+    
+    ax1.set_xlabel('Volume (m³)', fontsize=12, fontweight='bold')
+    ax1.set_ylabel('Pression (kPa)', fontsize=12, fontweight='bold')
+    ax1.set_title('Diagramme de Clapeyron (P-V)', fontsize=14, fontweight='bold', pad=20)
+    ax1.grid(True, alpha=0.3, linestyle='--')
+    ax1.legend(loc='upper right')
+    ax1.set_xscale('log')
+    ax1.set_yscale('log')
+    
+    # Diagramme T-S
+    fig2, ax2 = plt.subplots(figsize=(8, 5))
+    
+    S = results['S']
+    T = results['T']
+    
+    for i in range(4):
+        ax2.plot(S[i:i+2], T[i:i+2], color=colors[i], linewidth=3, label=labels[i])
+        ax2.plot(S[i], T[i], 'ko', markersize=8)
+        ax2.text(S[i]*1.02, T[i]*1.02, f'{i+1}', fontsize=12, fontweight='bold')
+    
+    ax2.set_xlabel('Entropie (J/K)', fontsize=12, fontweight='bold')
+    ax2.set_ylabel('Température (K)', fontsize=12, fontweight='bold')
+    ax2.set_title('Diagramme Entropique (T-S)', fontsize=14, fontweight='bold', pad=20)
+    ax2.grid(True, alpha=0.3, linestyle='--')
+    ax2.legend(loc='upper left')
+    
+    return fig1, fig2
 
-with col2:
-    if simuler:
-        # Calcul des résultats
-        if cycle_type == "Otto (Beau de Rochas)":
-            results = calculate_otto_cycle(V1, P1, T1, r, T_max)
-            cycle_name = "Cycle Otto"
-        else:
-            results = calculate_diesel_cycle(V1, P1, T1, r, r_c, T_max)
-            cycle_name = "Cycle Diesel"
-        
-        points = results['points']
-        
-        # Création des graphiques
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-        
-        # 1. Diagramme de Clapeyron (P, V)
-        ax1 = axes[0]
-        ax1.plot(points['V'], points['P'], 'b-', linewidth=2)
-        
-        # Coloration des zones et points
-        colors = ['red', 'green', 'blue', 'orange']
-        labels = ['1-2 Compression', '2-3 Combustion', '3-4 Détente', '4-1 Échappement']
-        
-        for i in range(4):
-            ax1.plot(points['V'][i:i+2], points['P'][i:i+2], 
-                    color=colors[i], linewidth=3, label=labels[i])
-            ax1.plot(points['V'][i], points['P'][i], 
-                    'ko', markersize=8)
-            ax1.text(points['V'][i]*1.02, points['P'][i]*1.02, 
-                    f'{i+1}', fontsize=12, fontweight='bold')
-        
-        ax1.set_xlabel('Volume (m³)', fontsize=12)
-        ax1.set_ylabel('Pression (Pa)', fontsize=12)
-        ax1.set_title(f'Diagramme de Clapeyron (P, V) - {cycle_name}', 
-                     fontsize=14, fontweight='bold')
-        ax1.grid(True, alpha=0.3)
-        ax1.legend(loc='best')
-        ax1.set_xscale('log')
-        ax1.set_yscale('log')
-        
-        # 2. Diagramme Entropique (T, S)
-        ax2 = axes[1]
-        ax2.plot(points['S'], points['T'], 'b-', linewidth=2)
-        
-        for i in range(4):
-            ax2.plot(points['S'][i:i+2], points['T'][i:i+2], 
-                    color=colors[i], linewidth=3, label=labels[i])
-            ax2.plot(points['S'][i], points['T'][i], 
-                    'ko', markersize=8)
-            ax2.text(points['S'][i]*1.02, points['T'][i]*1.02, 
-                    f'{i+1}', fontsize=12, fontweight='bold')
-        
-        ax2.set_xlabel('Entropie (J/K)', fontsize=12)
-        ax2.set_ylabel('Température (K)', fontsize=12)
-        ax2.set_title(f'Diagramme Entropique (T, S) - {cycle_name}', 
-                     fontsize=14, fontweight='bold')
-        ax2.grid(True, alpha=0.3)
-        ax2.legend(loc='best')
-        
-        plt.tight_layout()
-        st.pyplot(fig)
-        
-        # Téléchargement des données
-        st.markdown("---")
-        st.markdown("### Export des Données")
-        
-        # Création d'un DataFrame pour l'export
-        export_data = pd.DataFrame({
-            'Point': ['1', '2', '3', '4', '1'],
-            'Volume (m³)': points['V'],
-            'Pression (Pa)': points['P'],
-            'Température (K)': points['T'],
-            'Entropie (J/K)': points['S']
-        })
-        
-        csv = export_data.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Télécharger les données du cycle",
-            data=csv,
-            file_name=f"cycle_{cycle_type.replace(' ', '_').lower()}_data.csv",
-            mime="text/csv"
-        )
-    else:
-        # Message d'attente
-        st.info("🎯 Configurez les paramètres dans la barre latérale et cliquez sur 'Lancer la Simulation'")
-        
-        # Image d'exemple ou explication
+# Application principale
+def main():
+    # Header avec logo
+    create_header()
+    
+    # Deux colonnes principales
+    col_left, col_right = st.columns([1.2, 2])
+    
+    with col_left:
         st.markdown("""
-        <div style="text-align: center; padding: 2rem; background-color: #F0F9FF; border-radius: 10px;">
-            <h3 style="color: #1E40AF;">Prêt à Simuler!</h3>
-            <p>Ce simulateur vous permet d'analyser les cycles thermiques Otto et Diesel.</p>
-            <p>Configurez les paramètres et visualisez les diagrammes P-V et T-S.</p>
+        <div class='card'>
+            <div class='card-title'>Simulateur Thermique EPL</div>
         </div>
         """, unsafe_allow_html=True)
-
-# Section d'explication
-st.markdown("---")
-st.markdown('<h2 class="sub-header">Explication des Cycles</h2>', unsafe_allow_html=True)
-
-col_exp1, col_exp2 = st.columns(2)
-
-with col_exp1:
-    with st.expander("**Cycle Otto (Beau de Rochas)**", expanded=True):
-        st.markdown("""
-        **Phases du cycle:**
-        1. **1→2**: Compression adiabatique
-        2. **2→3**: Combustion isochore (à volume constant)
-        3. **3→4**: Détente adiabatique
-        4. **4→1**: Échappement isochore
         
-        **Caractéristiques:**
-        - Moteur à allumage commandé
-        - Taux de compression typique: 8-12
-        - Rendement théorique: η = 1 - (1/r^(γ-1))
-        """)
-
-with col_exp2:
-    with st.expander("**Cycle Diesel**", expanded=True):
-        st.markdown("""
-        **Phases du cycle:**
-        1. **1→2**: Compression adiabatique
-        2. **2→3**: Combustion isobare (à pression constante)
-        3. **3→4**: Détente adiabatique
-        4. **4→1**: Échappement isochore
+        # Sélection du cycle
+        cycle_type = st.selectbox(
+            "**Cycle thermique**",
+            ["Otto (Beau de Rochas)", "Diesel"],
+            key="cycle_type"
+        )
         
-        **Caractéristiques:**
-        - Moteur à allumage par compression
-        - Taux de compression élevé: 12-20
-        - Taux de coupure (r_c) important
-        - Rendement théorique: η = 1 - (1/r^(γ-1)) × ((r_c^γ - 1)/(γ(r_c - 1)))
-        """)
+        st.markdown("**Modèle de Gaz**")
+        st.markdown("- Gaz Simple")
+        
+        # Paramètres d'entrée
+        st.markdown("<div class='card-title'>Paramètres d'Entrée</div>", unsafe_allow_html=True)
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            V1 = st.number_input(
+                "Volume initial $V_1$ (m³)",
+                min_value=0.001,
+                max_value=1.0,
+                value=0.03,
+                format="%.5f",
+                step=0.001,
+                key="V1"
+            )
+        
+        with col2:
+            P1 = st.number_input(
+                "Pression initiale $P_1$ (Pa)",
+                min_value=50000,
+                max_value=200000,
+                value=101328,
+                step=1000,
+                key="P1"
+            )
+        
+        T1 = st.number_input(
+            "Température initiale $T_1$ (K)",
+            min_value=250,
+            max_value=400,
+            value=302,
+            step=5,
+            key="T1"
+        )
+        
+        # Variables de modélisation
+        st.markdown("<div class='card-title'>Variables de Modélisation</div>", unsafe_allow_html=True)
+        
+        r = st.slider(
+            "Taux de Compression ($r$)",
+            min_value=6.0,
+            max_value=15.0,
+            value=9.5,
+            step=0.1,
+            key="r"
+        )
+        
+        T_max = st.slider(
+            "Température Max ($T_{max}$) (K)",
+            min_value=1500,
+            max_value=2500,
+            value=2100,
+            step=50,
+            key="T_max"
+        )
+        
+        # Calcul automatique
+        results = calculate_otto_cycle(V1, P1, T1, r, T_max)
+        
+        # Données du cycle
+        st.markdown("<div class='card-title'>Données du Cycle</div>", unsafe_allow_html=True)
+        
+        # Création du tableau des résultats
+        data_html = f"""
+        <table class='data-table'>
+            <tr>
+                <th>Paramètre</th>
+                <th>Valeur</th>
+            </tr>
+            <tr>
+                <td>Rendement ($\\eta$)</td>
+                <td><strong>{results['rendement']*100:.2f} %</strong></td>
+            </tr>
+            <tr>
+                <td>Travail Net</td>
+                <td><strong>{results['travail_net']:.2f} J</strong></td>
+            </tr>
+            <tr>
+                <td>Puissance</td>
+                <td><strong>{results['puissance']:.1f} kW</strong></td>
+            </tr>
+            <tr>
+                <td>Couple</td>
+                <td><strong>{results['couple']:.1f} N.m</strong></td>
+            </tr>
+        </table>
+        """
+        st.markdown(data_html, unsafe_allow_html=True)
+        
+        # Points du cycle
+        st.markdown("<div class='card-title'>Points du Cycle</div>", unsafe_allow_html=True)
+        
+        points_html = """
+        <table class='data-table'>
+            <tr>
+                <th>Point</th>
+                <th>V (m³)</th>
+                <th>P (kPa)</th>
+                <th>T (K)</th>
+            </tr>
+        """
+        for i, point in enumerate(results['points'], 1):
+            points_html += f"""
+            <tr>
+                <td><strong>{i}</strong></td>
+                <td>{point['V']:.5f}</td>
+                <td>{point['P']:.1f}</td>
+                <td>{point['T']:.1f}</td>
+            </tr>
+            """
+        points_html += "</table>"
+        st.markdown(points_html, unsafe_allow_html=True)
+    
+    with col_right:
+        st.markdown("<div class='card-title'>Labo Virtuel - Visualisation</div>", unsafe_allow_html=True)
+        
+        # Graphiques
+        fig1, fig2 = create_plots(results)
+        
+        # Affichage des graphiques
+        st.markdown("### 1. Diagramme de Clapeyron (P, V)")
+        st.pyplot(fig1)
+        
+        st.markdown("### 2. Diagramme Entropique (T, S)")
+        st.pyplot(fig2)
+        
+        # Légende des phases
+        col_a, col_b, col_c, col_d = st.columns(4)
+        with col_a:
+            st.markdown("""
+            <div style='background-color: #ef4444; padding: 5px 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>
+                1-2 Compression
+            </div>
+            """, unsafe_allow_html=True)
+        with col_b:
+            st.markdown("""
+            <div style='background-color: #10b981; padding: 5px 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>
+                2-3 Combustion
+            </div>
+            """, unsafe_allow_html=True)
+        with col_c:
+            st.markdown("""
+            <div style='background-color: #3b82f6; padding: 5px 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>
+                3-4 Détente
+            </div>
+            """, unsafe_allow_html=True)
+        with col_d:
+            st.markdown("""
+            <div style='background-color: #f59e0b; padding: 5px 10px; border-radius: 5px; text-align: center; color: white; font-weight: bold;'>
+                4-1 Échappement
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Section inférieure - Étude Paramétrique
+    st.markdown("---")
+    st.markdown("<div class='card-title'>Étude Paramétrique - Cycle Otto</div>", unsafe_allow_html=True)
+    
+    col_exp1, col_exp2, col_exp3 = st.columns(3)
+    
+    with col_exp1:
+        with st.expander("**Phase 1-2: Compression**", expanded=True):
+            st.markdown("""
+            - **Transformation**: Adiabatique réversible
+            - **Loi**: $P_1V_1^\\gamma = P_2V_2^\\gamma$
+            - **Température**: $T_2 = T_1 \\times r^{\\gamma-1}$
+            - Travail consommé
+            """)
+    
+    with col_exp2:
+        with st.expander("**Phase 2-3: Combustion**", expanded=True):
+            st.markdown("""
+            - **Transformation**: Isochore
+            - **Volume constant**: $V_2 = V_3$
+            - **Pression**: $P_3 = P_2 \\times \\frac{T_3}{T_2}$
+            - Chaleur fournie au fluide
+            """)
+    
+    with col_exp3:
+        with st.expander("**Phase 3-4 & 4-1**", expanded=True):
+            st.markdown("""
+            **3-4: Détente**
+            - Adiabatique réversible
+            - Travail produit
+            
+            **4-1: Échappement**
+            - Isochore
+            - Chaleur rejetée
+            - Retour à l'état initial
+            """)
+    
+    # Note de bas de page
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style='text-align: center; color: #6b7280; font-size: 0.9rem; padding: 1rem;'>
+            Simulateur Thermique EPL - École Polytechnique de Lille<br>
+            Cycle Otto (Beau de Rochas) - Modèle de gaz parfait
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
-# Pied de page
-st.markdown("---")
-st.markdown(
-    "<div style='text-align: center; color: #666;'>"
-    "Simulateur Thermique EPL - Labo Virtuel d'Étude des Moteurs - © 2024"
-    "</div>",
-    unsafe_allow_html=True
-)
+if __name__ == "__main__":
+    main()
