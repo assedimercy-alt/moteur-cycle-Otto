@@ -5,162 +5,129 @@ import numpy as np
 # Configuration de la page
 st.set_page_config(page_title="Simulateur Thermodynamique EPL", layout="wide")
 
-# --- STYLE CSS COMPLET (Bordures noires, couleurs vives, mode sombre) ---
+# --- STYLE CSS (Fidèle à l'image : Dashboard sombre et bordures noires) ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: white; }
     
-    /* Cartes de métriques avec contour noir épais identique à ton image */
+    /* Cartes de métriques avec contour noir */
     div[data-testid="stMetric"] {
         background-color: #1e222d;
-        border: 4px solid #000000;
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0px 4px 15px rgba(0,0,0,0.6);
+        border: 2px solid #000000;
+        border-radius: 8px;
+        padding: 15px;
     }
     
-    h1, h2, h3 { color: #00f2ff !important; font-family: 'Arial'; }
-    div[data-testid="stMetricValue"] { color: #00ff88 !important; font-size: 38px !important; font-weight: bold; }
-    div[data-testid="stMetricLabel"] { color: #ffffff !important; font-size: 20px !important; }
+    h1, h2, h3 { color: #d65cf5 !important; font-family: 'sans-serif'; } /* Titre violet comme image */
+    div[data-testid="stMetricValue"] { color: #00ff88 !important; font-size: 28px !important; }
     
-    /* Style des Onglets blancs quand sélectionnés */
-    .stTabs [data-baseweb="tab-list"] { gap: 12px; }
+    /* Style des Onglets */
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] {
-        background-color: #262730; color: white; border-radius: 5px; padding: 12px 24px;
+        background-color: #262730; color: white; border-radius: 5px; padding: 10px 20px;
     }
-    .stTabs [aria-selected="true"] { background-color: #ffffff !important; color: black !important; font-weight: bold; }
+    .stTabs [aria-selected="true"] { border-bottom: 2px solid #d65cf5 !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- BARRE LATÉRALE (SIDEBAR) ---
+# --- BARRE LATÉRALE (Paramètres d'entrée) ---
 with st.sidebar:
-    # Logo de l'école
-    st.image("https://upload.wikimedia.org/wikipedia/fr/b/b3/Logo_UL_Togo.png", width=220)
-    st.markdown("## ⚙️ Configuration")
+    st.image("im1.jpeg", width=220)
     
-    with st.expander("🔬 Modélisation", expanded=True):
-        type_cycle = st.selectbox("Type de Cycle", ["Otto (Beau de Rochas)", "Diesel"])
-        modele_gaz = st.selectbox("Modèle de Gaz", ["Gaz Parfait (Air)", "Gaz Simple"])
+    st.selectbox("Type de Cycle", ["Otto (Beau de Rochas)"], key="type")
+    st.selectbox("Modèle de Gaz", ["Gaz Simple", "Gaz Parfait"], key="gaz")
     
-    with st.expander("🌡️ Paramètres Thermodynamiques", expanded=True):
-        r = st.slider("Taux de Compression (r)", 5.0, 22.0, 9.5)
-        T_max = st.slider("Température Max (K)", 1000, 3000, 2200)
-        P1 = 101325 # Pa
-        T1 = 300    # K
-        gamma = 1.4 if modele_gaz == "Gaz Parfait (Air)" else 1.3
+    st.markdown("### Paramètres d'Entrée")
+    V1 = st.number_input("Volume initial V1 (m³)", value=0.03000, format="%.5f")
+    P1 = st.number_input("Pression initiale P1 (Pa)", value=101328)
+    T1 = st.number_input("Température initiale T1 (K)", value=302)
     
-    st.info("💡 Conseil : Augmentez T_max pour obtenir un cycle moteur puissant.")
+    st.markdown("### Variables de Modélisation")
+    r = st.slider("Taux de Compression (r)", 5.0, 15.0, 9.50)
+    T_max = st.slider("Température Max (K)", 1000, 3000, 2100)
 
 # --- CALCULS PHYSIQUES ---
-R = 287  
-V1 = 0.0005 
-V2 = V1 / r
+gamma = 1.4 if st.session_state.gaz == "Gaz Parfait" else 1.32
+R = 287
 mass = (P1 * V1) / (R * T1)
+V2 = V1 / r
 
-# 1 -> 2 : Compression Adiabatique
+# Points du Cycle Otto
+# 1->2 : Compression
 p2 = P1 * (r**gamma)
 t2 = T1 * (r**(gamma-1))
 W_comp = (mass * R * (t2 - T1)) / (1 - gamma)
 
-if "Otto" in type_cycle:
-    # Combustion Isochore
-    V3 = V2
-    p3 = p2 * (T_max / t2)
-    # Détente Adiabatique
-    V4 = V1
-    p4 = p3 * (V2 / V4)**gamma
-    t4 = T_max * (V2 / V4)**(gamma-1)
-    rendement = 1 - (1 / (r**(gamma - 1)))
-else:
-    # Diesel : Combustion Isobare
-    p3 = p2
-    rc = T_max / t2 
-    V3 = V2 * rc
-    V4 = V1
-    p4 = p3 * (V3 / V4)**gamma
-    t4 = T_max * (V3 / V4)**(gamma-1)
-    rendement = 1 - ( (1/gamma) * ((rc**gamma - 1) / (rc - 1)) * (1 / r**(gamma-1)) )
+# 2->3 : Combustion
+p3 = p2 * (T_max / t2)
 
-# Travail de détente et bilan
+# 3->4 : Détente
+p4 = p3 * (1/r)**gamma
+t4 = T_max * (1/r)**(gamma-1)
 W_det = (mass * R * (t4 - T_max)) / (1 - gamma)
-travail_net = W_comp + W_det 
-puissance_watt = travail_net * (3000 / 60)
-couple_val = puissance_watt / (2 * np.pi * 3000 / 60)
 
-# --- CORPS DU SITE ---
-st.title("Simulateur Moteur Thermique - Labo Virtuel")
+# Résultats finaux
+travail_net = W_comp + W_det
+rendement = 1 - (1 / (r**(gamma - 1)))
+puissance = travail_net * (3000 / 60) # Simulée à 3000 RPM
+couple = puissance / (2 * np.pi * 3000 / 60)
 
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Labo Virtuel", "📈 Étude Paramétrique", "📋 Données", "🎓 Projet EPL"])
+# --- AFFICHAGE PRINCIPAL ---
+st.markdown("<h2 style='text-align: center;'>SIMULATEUR MOTEUR THERMIQUE - EPL</h2>", unsafe_allow_html=True)
+
+tab1, tab2, tab3 = st.tabs(["📊 Labo Virtuel", "📈 Étude Paramétrique", "📋 Données du Cycle"])
 
 with tab1:
-    st.subheader("Performances Temps Réel")
-    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-    col_m1.metric("Rendement (η)", f"{rendement:.2%}", "+ 6.5 pts")
-    col_m2.metric("Travail Net (W)", f"{travail_net:.1f} J", 
-                  delta="Moteur" if travail_net < 0 else "Compresseur",
-                  delta_color="normal" if travail_net < 0 else "inverse")
-    col_m3.metric("Puissance", f"{puissance_watt/1000:.1f} kW", "↑ 3000 rpm")
-    col_m4.metric("Couple", f"{couple_val:.1f} N.m")
+    # Métriques
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Rendement (η)", f"{rendement:.2%}")
+    c2.metric("Travail Net", f"{abs(travail_net):.2f} J")
+    c3.metric("Puissance", f"{abs(puissance/1000):.1f} kW")
+    c4.metric("Couple", f"{abs(couple):.1f} N.m")
 
     st.divider()
 
-    g1, g2 = st.columns(2)
-    with g1:
+    col_g1, col_g2 = st.columns(2)
+
+    with col_g1:
         st.write("### 1. Diagramme de Clapeyron (P, V)")
         fig, ax = plt.subplots(facecolor='#0e1117')
         ax.set_facecolor('#0e1117')
         
-        # Courbes avec couleurs vives et légendes
+        # Courbes
         v_c = np.linspace(V1, V2, 100)
         p_c = P1 * (V1 / v_c)**gamma
-        ax.plot(v_c*1000, p_c/100000, color='#00f2ff', linewidth=3, label='Compression')
+        ax.plot(v_c, p_c/100000, color='#00f2ff', label='1-2 Compression')
         
-        if "Otto" in type_cycle:
-            ax.plot([V2*1000, V2*1000], [p2/100000, p3/100000], color='#ff0055', linewidth=3, label='Combustion')
-        else:
-            ax.plot([V2*1000, V3*1000], [p3/100000, p3/100000], color='#ff0055', linewidth=3, label='Combustion')
-            
-        v_d = np.linspace(V3, V4, 100)
-        p_d = p3 * (V3 / v_d)**gamma
-        ax.plot(v_d*1000, p_d/100000, color='#ffea00', linewidth=3, label='Détente')
-        ax.plot([V1*1000, V1*1000], [p4/100000, P1/100000], color='#00ff88', linewidth=3, label='Échappement')
+        ax.plot([V2, V2], [p2/100000, p3/100000], color='#ff0055', label='2-3 Combustion')
+        
+        v_d = np.linspace(V2, V1, 100)
+        p_d = p3 * (V2 / v_d)**gamma
+        ax.plot(v_d, p_d/100000, color='#ffea00', label='3-4 Détente')
+        
+        ax.plot([V1, V1], [p4/100000, P1/100000], color='#00ff88', label='4-1 Échappement')
 
-        ax.grid(color='#444', linestyle='--', alpha=0.7)
-        ax.set_xlabel("Volume (Litre)", color='white')
+        ax.grid(color='#444', linestyle='--', linewidth=0.5)
+        ax.set_xlabel("Volume (m³)", color='white')
         ax.set_ylabel("Pression (bar)", color='white')
         ax.tick_params(colors='white')
-        
-        leg = ax.legend(facecolor='#1e222d', edgecolor='white')
-        for text in leg.get_texts(): text.set_color("white")
+        ax.legend(facecolor='#1e222d', labelcolor='white')
         st.pyplot(fig)
 
-    with g2:
+    with col_g2:
         st.write("### 2. Diagramme Entropique (T, S)")
         fig2, ax2 = plt.subplots(facecolor='#0e1117')
         ax2.set_facecolor('#0e1117')
         
-        # Courbe T-S dynamique
-        s_base = np.linspace(0.2, 0.8, 100)
-        t_curve = T1 + (T_max - T1) * (s_base**1.5)
-        ax2.plot(s_base, t_curve, color='#ff00ff', linewidth=3, label="Cycle T-S")
+        # Simulation T-S
+        s = np.linspace(0, 8, 100)
+        t_c = T1 + (t2-T1)*(s/8)
+        t_d = t4 + (T_max-t4)*(s/8)
+        ax2.plot(s, t_c, color='#00ff88')
+        ax2.plot(s, t_d, color='#ff0055')
         
-        ax2.grid(color='#444', linestyle='--', alpha=0.7)
+        ax2.grid(color='#444', linestyle='--', linewidth=0.5)
         ax2.set_xlabel("Entropie (S)", color='white')
         ax2.set_ylabel("Température (K)", color='white')
         ax2.tick_params(colors='white')
         st.pyplot(fig2)
-
-with tab2:
-    st.info("📊 Analyse de sensibilité : Le rendement augmente avec le taux de compression.")
-
-with tab3:
-    st.table({
-        "État du Gaz": ["Aspiration (1)", "Fin Compression (2)", "Fin Combustion (3)", "Fin Détente (4)"],
-        "Pression (bar)": [round(P1/100000, 2), round(p2/100000, 2), round(p3/100000, 2), round(p4/100000, 2)],
-        "Volume (L)": [round(V1*1000, 2), round(V2*1000, 2), round(V3*1000, 2), round(V4*1000, 2)],
-        "Température (K)": [round(T1, 1), round(t2, 1), round(T_max, 1), round(t4, 1)]
-    })
-
-with tab4:
-    st.write("### 🎓 École Polytechnique de Lomé (EPL)")
-    st.write("Ce simulateur a été développé pour l'étude des moteurs à combustion interne.")
