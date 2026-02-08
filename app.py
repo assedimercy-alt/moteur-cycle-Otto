@@ -1,6 +1,6 @@
 import streamlit as st
 import matplotlib.pyplot as plt
-import numpy as np
+import numpy as np 
 
 # Configuration de la page
 st.set_page_config(page_title="Simulateur Thermodynamique EPL", layout="wide")
