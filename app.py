@@ -37,7 +37,7 @@ st.markdown("""
 with st.sidebar:
     # Logo de l'école (URL directe vers le logo de l'Université de Lomé)
     # Utilise le nom exact du fichier tel qu'il apparaît sur GitHub
-    st.image("im2.jpeg", width=220)
+    st.image("im1.jpeg", width=220)
     st.markdown("## ⚙️ Configuration")
     
     with st.expander("🔬 Modélisation", expanded=True):
