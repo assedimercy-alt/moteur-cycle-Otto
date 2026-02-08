@@ -5,7 +5,7 @@ import numpy as np
 # Configuration de la page
 st.set_page_config(page_title="Simulateur Thermodynamique EPL", layout="wide")
 
-# --- STYLE CSS PERSONNALISÉ (Couleurs vives et bordures noires) ---
+# --- STYLE CSS PERSONNALISÉ (Le look "Waoo" avec bordures noires et néons) ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; color: white; }
@@ -35,7 +35,6 @@ st.markdown("""
 
 # --- BARRE LATÉRALE (SIDEBAR) ---
 with st.sidebar:
-    #  le logo de l'Université de Lomé
     st.image("im1.jpeg", width=220)
     st.markdown("## ⚙️ Configuration")
     
@@ -44,25 +43,22 @@ with st.sidebar:
         modele_gaz = st.selectbox("Modèle de Gaz", ["Gaz Parfait (Air)", "Gaz Simple"])
     
     with st.expander("🌡️ Paramètres", expanded=True):
-        r = st.slider("Taux de Compression (r)", 5.0, 22.0, 10.0 if type_cycle == "Otto" else 18.0)
+        r = st.slider("Taux de Compression (r)", 5.0, 22.0, 10.0)
         T_max = st.slider("Température Max (K)", 1000, 3000, 2200)
-        P1 = 101325 # Pression atmosphérique
-        T1 = 300    # Température ambiante
+        P1 = 101325 
+        T1 = 300    
         gamma = 1.4 if modele_gaz == "Gaz Parfait (Air)" else 1.3
 
-# --- HEADER ---
-st.title("Simulateur Moteur Thermique - Labo Virtuel")
-
-# --- ONGLETS (Uniquement ceux demandés) ---
-tab1, tab2, tab3 = st.tabs(["📊 Labo Virtuel", "📈 Étude Paramétrique", "📋 Données"])
-
 # --- CALCULS PHYSIQUES ---
-V1 = 1.0
+R = 287  
+V1 = 0.0005 
 V2 = V1 / r
+mass = (P1 * V1) / (R * T1)
 
 # Compression (1-2)
 p2 = P1 * (r**gamma)
 t2 = T1 * (r**(gamma-1))
+W_comp = (mass * R * (t2 - T1)) / (1 - gamma)
 
 if "Otto" in type_cycle:
     # Combustion Isochore (2-3)
@@ -70,13 +66,13 @@ if "Otto" in type_cycle:
     p3 = p2 * (T_max / t2)
     # Détente (3-4)
     V4 = V1
-    p4 = p3 * (V3 / V4)**gamma
-    t4 = T_max * (V3 / V4)**(gamma-1)
+    p4 = p3 * (V2 / V4)**gamma
+    t4 = T_max * (V2 / V4)**(gamma-1)
     rendement = 1 - (1 / (r**(gamma - 1)))
 else:
     # Diesel : Combustion Isobare (2-3)
     p3 = p2
-    rc = T_max / t2 # Rapport de détente prolongée
+    rc = T_max / t2 
     V3 = V2 * rc
     # Détente (3-4)
     V4 = V1
@@ -84,16 +80,27 @@ else:
     t4 = T_max * (V3 / V4)**(gamma-1)
     rendement = 1 - ( (1/gamma) * ((rc**gamma - 1) / (rc - 1)) * (1 / r**(gamma-1)) )
 
-# --- CONTENU ONGLET 1 : LABO VIRTUEL ---
-with tab1:
-    # Métriques avec les bordures noires (via CSS)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Rendement (η)", f"{rendement:.2%}", "+ 2.1%")
-    c2.metric("Travail Net", f"{-625 if 'Otto' in type_cycle else -710} J")
-    c3.metric("Puissance", f"{-15.6} kW", "3000 rpm")
-    c4.metric("Couple", f"{-49726} N.m")
+# Bilan énergétique
+W_det = (mass * R * (t4 - T_max)) / (1 - gamma)
+travail_net = W_comp + W_det 
+puissance_watt = travail_net * (3000 / 60)
+couple_val = puissance_watt / (2 * np.pi * 3000 / 60)
 
-    st.markdown("---")
+# --- HEADER ---
+st.title("Simulateur Moteur Thermique - Labo Virtuel")
+
+# --- ONGLETS ---
+tab1, tab2, tab3 = st.tabs(["📊 Labo Virtuel", "📈 Étude Paramétrique", "📋 Données"])
+
+with tab1:
+    # Métriques avec bordures noires
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Rendement (η)", f"{rendement:.2%}")
+    c2.metric("Travail Net", f"{travail_net:.1f} J", delta="Moteur" if travail_net < 0 else "Compresseur")
+    c3.metric("Puissance", f"{puissance_watt/1000:.1f} kW", "3000 rpm")
+    c4.metric("Couple", f"{couple_val:.1f} N.m")
+
+    st.divider()
 
     col_g1, col_g2 = st.columns(2)
 
@@ -102,31 +109,26 @@ with tab1:
         fig, ax = plt.subplots(facecolor='#0e1117')
         ax.set_facecolor('#0e1117')
         
-        # Courbes avec couleurs vives
+        # Courbes avec couleurs vives (Cyan, Rouge, Jaune, Vert)
         v_c = np.linspace(V1, V2, 100)
         p_c = P1 * (V1 / v_c)**gamma
-        ax.plot(v_c, p_c/100000, color='#00f2ff', linewidth=3, label='Compression (Adiabatique)')
+        ax.plot(v_c, p_c/100000, color='#00f2ff', linewidth=3, label='Compression')
         
         if "Otto" in type_cycle:
-            ax.plot([V2, V2], [p2/100000, p3/100000], color='#ff0055', linewidth=3, label='Combustion (Isochore)')
+            ax.plot([V2, V2], [p2/100000, p3/100000], color='#ff0055', linewidth=3, label='Combustion')
         else:
-            ax.plot([V2, V3], [p3/100000, p3/100000], color='#ff0055', linewidth=3, label='Combustion (Isobare)')
+            ax.plot([V2, V3], [p3/100000, p3/100000], color='#ff0055', linewidth=3, label='Combustion')
             
         v_d = np.linspace(V3, V4, 100)
         p_d = p3 * (V3 / v_d)**gamma
-        ax.plot(v_d, p_d/100000, color='#ffea00', linewidth=3, label='Détente (Adiabatique)')
-        ax.plot([V1, V1], [p4/100000, P1/100000], color='#00ff88', linewidth=3, label='Échappement (Isochore)')
+        ax.plot(v_d, p_d/100000, color='#ffea00', linewidth=3, label='Détente')
+        ax.plot([V1, V1], [p4/100000, P1/100000], color='#00ff88', linewidth=3, label='Échappement')
 
-        # Grille vive et Labels
         ax.grid(color='#444', linestyle='--', linewidth=0.5)
         ax.set_xlabel("Volume (m³)", color='white')
         ax.set_ylabel("Pression (bar)", color='white')
         ax.tick_params(colors='white')
-        
-        # Légende stylisée
-        leg = ax.legend(facecolor='#1e222d', edgecolor='white')
-        for text in leg.get_texts(): text.set_color("white")
-        
+        ax.legend(facecolor='#1e222d', labelcolor='white')
         st.pyplot(fig)
 
     with col_g2:
@@ -134,10 +136,10 @@ with tab1:
         fig2, ax2 = plt.subplots(facecolor='#0e1117')
         ax2.set_facecolor('#0e1117')
         
-        # Courbe T-S vive (Simplifiée pour l'exemple)
+        # Courbe T-S vive
         s = np.linspace(0.1, 0.9, 100)
         t_curve = T1 * np.exp(s * 1.5)
-        ax2.plot(s, t_curve, color='#ff00ff', linewidth=3, label="Évolution Température")
+        ax2.plot(s, t_curve, color='#ff00ff', linewidth=3, label="Évolution T-S")
         
         ax2.grid(color='#444', linestyle='--', linewidth=0.5)
         ax2.set_xlabel("Entropie (S)", color='white')
@@ -145,16 +147,13 @@ with tab1:
         ax2.tick_params(colors='white')
         st.pyplot(fig2)
 
-# --- CONTENU DES AUTRES ONGLETS ---
 with tab2:
-    st.info("Cette section permet de comparer le rendement en fonction du taux de compression.")
-    # Tu pourrais ajouter ici un graphique de rendement = f(r)
+    st.info("Utilisez les réglages à gauche pour voir l'impact sur le rendement.")
 
 with tab3:
     st.write("### Tableau des points caractéristiques")
-    data = {
-        "Point": ["1 (Aspiration)", "2 (Compression)", "3 (Combustion)", "4 (Détente)"],
+    st.table({
+        "Point": ["1 (Ambiant)", "2 (Compressé)", "3 (Combustion)", "4 (Détendu)"],
         "Pression (bar)": [P1/100000, p2/100000, p3/100000, p4/100000],
         "Température (K)": [T1, t2, T_max, t4]
-    }
-    st.table(data)
+    })
