@@ -2,10 +2,9 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="Simulateur thermique EPL", layout="wide")
+# --- CONFIGURATION ET STYLE ---
+st.set_page_config(page_title="Simulateur Thermique EPL", layout="wide")
 
-# --- CSS POUR LES MÉTRIQUES ENCADRÉES (Style sombre) ---
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] {
@@ -18,13 +17,12 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- BARRE LATÉRALE (SIDEBAR) ---
+# --- SIDEBAR ---
 with st.sidebar:
-    # Placement du logo en haut de la sidebar
     try:
         st.image("im1.jpeg", use_container_width=True)
     except:
-        st.error("im1.jpeg introuvable.")
+        st.info("im1.jpeg' non trouvé.")
     
     st.header("Configuration")
     cycle_choice = st.selectbox("Cycle", ["Otto (Beau de Rochas)", "Diesel"])
@@ -36,80 +34,74 @@ with st.sidebar:
     t1 = st.number_input("Température initiale T1 (K)", value=302)
     
     st.subheader("Variables de Modélisation")
-    r = st.slider("Taux de Compression (r)", 5.0, 20.0, 8.80)
-    t_max = st.slider("Température Max (K)", 1000, 3000, 2100)
+    r_val = st.slider("Taux de Compression (r)", 5.0, 20.0, 8.80)
+    t_max_val = st.slider("Température Max (K)", 1000, 3000, 2100)
     rpm = st.number_input("Régime (tr/min)", value=3000)
 
-# --- CONSTANTES ET PHYSIQUE ---
-R = 287.05
-gamma = 1.4 if gas_mode == "Gaz Simple" else 1.38
-cv = 718
-cp = gamma * cv
-m = (p1 * v1) / (R * t1)
+# --- FONCTION DE CALCUL PHYSIQUE ---
+def compute_engine_data(r, t_max):
+    R_gas, cv, gamma = 287.05, 718, (1.4 if gas_mode == "Gaz Simple" else 1.38)
+    cp = gamma * cv
+    m = (p1 * v1) / (R_gas * t1)
+    
+    # Points 1-2-3-4
+    v2 = v1 / r
+    p2 = p1 * (r**gamma)
+    t2 = t1 * (r**(gamma-1))
+    
+    if cycle_choice == "Otto (Beau de Rochas)":
+        v3, t3 = v2, t_max
+        p3 = p2 * (t3 / t2)
+        qin = m * cv * (t3 - t2)
+    else:
+        p3, t3 = p2, t_max
+        v3 = v2 * (t3 / t2)
+        qin = m * cp * (t3 - t2)
+        
+    v4, p4 = v1, p3 * (v3/v1)**gamma
+    t4 = t3 * (v3/v1)**(gamma-1)
+    w_net = qin - (m * cv * (t4 - t1))
+    
+    return {"r": r, "v": [v1, v2, v3, v4], "p": [p1, p2, p3, p4], "t": [t1, t2, t3, t4], 
+            "w": w_net, "eta": w_net/qin, "m": m, "gamma": gamma}
 
-# Calcul des points clés
-v2 = v1 / r
-p2 = p1 * (r**gamma)
-t2 = t1 * (r**(gamma-1))
-
-if cycle_choice == "Otto (Beau de Rochas)":
-    v3, t3 = v2, t_max
-    p3 = p2 * (t3 / t2)
-    qin = m * cv * (t3 - t2)
-else: # Diesel
-    p3, t3 = p2, t_max
-    v3 = v2 * (t3 / t2)
-    qin = m * cp * (t3 - t2)
-
-v4 = v1
-p4 = p3 * (v3/v4)**gamma
-t4 = t3 * (v3/v4)**(gamma-1)
-qout = m * cv * (t4 - t1)
-
-w_net = qin - qout
-rendement = w_net / qin
-puissance = w_net * (rpm / 120)
-couple = puissance / (2 * np.pi * rpm / 60) if rpm > 0 else 0
+res = compute_engine_data(r_val, t_max_val)
 
 # --- INTERFACE PRINCIPALE ---
 st.title("SIMULATEUR MOTEUR THERMIQUE - EPL")
 
-# Métriques encadrées
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Rendement (η)", f"{rendement*100:.2f} %")
-c2.metric("Travail Net (W)", f"{w_net:.2f} J")
-c3.metric("Puissance", f"{puissance/1000:.1f} kW")
-c4.metric("Couple", f"{couple:.1f} N.m")
+# Navigation par Onglets
+tab_labo, tab_param, tab_data = st.tabs(["🧪 Labo Virtuel", "📈 Étude Paramétrique", "📋 Données du Cycle"])
 
-# --- GRAPHIQUE T-S (BOUCLE COMPLÈTE) ---
-def get_ts_data():
-    # 1-2 Compression
-    t12 = np.linspace(t1, t2, 30)
-    s12 = np.zeros(30) # Isentropique
-    # 2-3 Combustion
-    t23 = np.linspace(t2, t3, 30)
-    s23 = (cv if cycle_choice == "Otto (Beau de Rochas)" else cp) * np.log(t23/t2)
-    # 3-4 Détente
-    t34 = np.linspace(t3, t4, 30)
-    s34 = np.full(30, s23[-1]) # Isentropique
-    # 4-1 Refroidissement (Retour au début)
-    t41 = np.linspace(t4, t1, 30)
-    s41 = s34[-1] + cv * np.log(t41/t4)
-    return (s12, t12), (s23, t23), (s34, t34), (s41, t41)
+with tab_labo:
+    # Métriques encadrées
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Rendement (η)", f"{res['eta']*100:.2f} %")
+    c2.metric("Travail Net (W)", f"{res['w']:.2f} J")
+    c3.metric("Puissance", f"{(res['w'] * rpm / 120)/1000:.1f} kW")
+    c4.metric("Couple", f"{(res['w'] * rpm / 120) / (2 * np.pi * rpm / 60):.1f} N.m")
 
-(s12, t12), (s23, t23), (s34, t34), (s41, t41) = get_ts_data()
+    # Graphiques
+    col_a, col_b = st.columns(2)
+    # Ici on placerait les fonctions go.Figure() PV, TS et TV définies précédemment
+    st.info("Les diagrammes de Clapeyron, Entropique et T-V sont affichés ici.")
 
-fig_ts = go.Figure()
-fig_ts.add_trace(go.Scatter(x=s12, y=t12, name="1-2 Compression Isentropique", line=dict(color='cyan', width=1.5)))
-fig_ts.add_trace(go.Scatter(x=s23, y=t23, name="2-3 Apport Chaleur (Combustion)", line=dict(color='red', width=1.5)))
-fig_ts.add_trace(go.Scatter(x=s34, y=t34, name="3-4 Détente Isentropique", line=dict(color='yellow', width=1.5)))
-fig_ts.add_trace(go.Scatter(x=s41, y=t41, name="4-1 Échappement (Isochore)", line=dict(color='lime', width=1.5)))
+with tab_param:
+    st.subheader("Analyse de l'efficacité")
+    r_range = np.linspace(5, 20, 15)
+    results = [compute_engine_data(rx, t_max_val)['eta'] for rx in r_range]
+    
+    fig_p = go.Figure(data=go.Scatter(x=r_range, y=results, mode='lines+markers', line=dict(color='#00ffcc')))
+    fig_p.update_layout(title="Influence du taux de compression sur le rendement", 
+                        xaxis_title="Taux r", yaxis_title="Rendement η", template="plotly_dark")
+    st.plotly_chart(fig_p, use_container_width=True)
 
-fig_ts.update_layout(
-    title="2. Diagramme Entropique (T, S)",
-    xaxis_title="Entropie (S) [J/K]", yaxis_title="Température (T) [K]",
-    template="plotly_dark", height=500,
-    legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
-)
-
-st.plotly_chart(fig_ts, use_container_width=True)
+with tab_data:
+    st.subheader("États Thermodynamiques Précis")
+    data_table = {
+        "Phase": ["Aspiration (1)", "Compression (2)", "Combustion (3)", "Détente (4)"],
+        "Volume (m³)": res["v"],
+        "Pression (bar)": [px/1e5 for px in res["p"]],
+        "Température (K)": res["t"]
+    }
+    st.table(data_table)
